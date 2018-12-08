@@ -52,6 +52,7 @@ use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
+use kernel::debug;
 
 pub static mut TXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];
 pub static mut RXBUFFER: [u8; PAGE_SIZE as usize + 4] = [0; PAGE_SIZE as usize + 4];

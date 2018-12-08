@@ -8,7 +8,7 @@
 
 use core::cell::Cell;
 use core::{cmp, mem};
-use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use kernel::{debug, AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::stream::encode_u16;
 use crate::net::stream::encode_u8;

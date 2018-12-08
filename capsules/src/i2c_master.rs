@@ -1,6 +1,7 @@
 use kernel::common::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::hil::i2c;
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
+use enum_primitive::enum_from_primitive;
 
 /// Syscall driver number.
 use crate::driver;

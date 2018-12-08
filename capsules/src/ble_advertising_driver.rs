@@ -102,6 +102,7 @@ use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
+use kernel::debug;
 
 /// Syscall driver number.
 use crate::driver;

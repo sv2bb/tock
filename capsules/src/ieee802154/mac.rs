@@ -12,6 +12,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil::radio;
 use kernel::ReturnCode;
+use kernel::debug;
 use crate::net::ieee802154::{Header, MacAddress};
 
 pub trait Mac {

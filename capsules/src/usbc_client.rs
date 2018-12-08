@@ -5,6 +5,7 @@
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::VolatileCell;
+use kernel::debug;
 use kernel::hil;
 use crate::usb::ConfigurationDescriptor;
 use crate::usb::Descriptor;

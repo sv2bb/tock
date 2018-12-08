@@ -1,4 +1,5 @@
 use kernel::common::cells::OptionalCell;
+use kernel::debug;
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6::IP6Header;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;

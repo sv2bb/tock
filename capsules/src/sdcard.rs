@@ -1333,7 +1333,7 @@ impl<A: hil::time::Alarm> SDCard<'a, A> {
 impl<A: hil::time::Alarm> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(
         &self,
-        mut write_buffer: &'static mut [u8],
+        write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) {

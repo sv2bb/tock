@@ -4,6 +4,7 @@ use kernel::common::cells::TakeCell;
 use kernel::hil;
 use kernel::hil::uart::Client;
 use kernel::hil::uart::UART;
+use kernel::debug;
 use crate::virtual_uart::UartDevice;
 
 pub struct TestVirtualUartReceive {

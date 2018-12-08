@@ -98,6 +98,7 @@ use kernel::hil::uart::{self, Client, UART};
 use kernel::introspection::KernelInfo;
 use kernel::Kernel;
 use kernel::ReturnCode;
+use kernel::debug;
 
 // Since writes are character echoes, we do not need more than 4 bytes:
 // the longest write is 3 bytes for a backspace (backspace, space, backspace).

@@ -7,6 +7,7 @@ use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128_BLOCK_SIZE, AES128_KEY_SIZE,
 };
 use kernel::ReturnCode;
+use kernel::debug;
 
 pub struct TestAes128Ctr<'a, A: 'a> {
     aes: &'a A,

@@ -9,6 +9,7 @@ use core::cell::Cell;
 use kernel::hil::entropy;
 use kernel::hil::rng;
 use kernel::ReturnCode;
+use kernel::debug;
 
 const ELEMENTS: usize = 8;
 

@@ -5,18 +5,18 @@ use core::fmt::Write;
 use core::ptr::write_volatile;
 use core::{mem, ptr, slice, str};
 
-use callback::AppId;
-use capabilities::ProcessManagementCapability;
-use common::cells::MapCell;
-use common::{Queue, RingBuffer};
+use crate::callback::AppId;
+use crate::capabilities::ProcessManagementCapability;
+use crate::common::cells::MapCell;
+use crate::common::{Queue, RingBuffer};
 use core::cmp::max;
-use mem::{AppSlice, Shared};
-use platform::mpu::{self, MPU};
-use platform::Chip;
-use returncode::ReturnCode;
-use sched::Kernel;
-use syscall::{self, Syscall, UserspaceKernelBoundary};
-use tbfheader;
+use crate::mem::{AppSlice, Shared};
+use crate::platform::mpu::{self, MPU};
+use crate::platform::Chip;
+use crate::returncode::ReturnCode;
+use crate::sched::Kernel;
+use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
+use crate::tbfheader;
 
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board

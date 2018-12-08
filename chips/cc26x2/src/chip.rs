@@ -1,10 +1,10 @@
 use cortexm4::{self, nvic};
 use enum_primitive::cast::FromPrimitive;
-use gpio;
-use i2c;
-use peripheral_interrupts::NVIC_IRQ;
-use rtc;
-use uart;
+use crate::gpio;
+use crate::i2c;
+use crate::peripheral_interrupts::NVIC_IRQ;
+use crate::rtc;
+use crate::uart;
 
 pub struct Cc26X2 {
     mpu: cortexm4::mpu::MPU,

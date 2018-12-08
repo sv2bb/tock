@@ -21,4 +21,4 @@ pub mod rtc;
 pub mod trng;
 pub mod uart;
 
-pub use crt1::init;
+pub use crate::crt1::init;

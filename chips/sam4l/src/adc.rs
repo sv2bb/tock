@@ -18,15 +18,15 @@
 
 use core::cell::Cell;
 use core::{cmp, mem, slice};
-use dma;
+use crate::dma;
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::math;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
-use pm::{self, Clock, PBAClock};
-use scif;
+use crate::pm::{self, Clock, PBAClock};
+use crate::scif;
 
 /// Representation of an ADC channel on the SAM4L.
 pub struct AdcChannel {

@@ -2,11 +2,11 @@
 //! the Entropy32 trait.
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::entropy::{self, Continue};
 use kernel::ReturnCode;
-use pm;
+use crate::pm;
 
 #[repr(C)]
 struct TrngRegisters {

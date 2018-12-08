@@ -27,11 +27,11 @@
 // Last modified August 8th, 2018
 
 use core::cell::Cell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::analog_comparator;
 use kernel::ReturnCode;
-use pm;
+use crate::pm;
 
 /// Representation of an AC channel on the SAM4L.
 pub struct AcChannel {

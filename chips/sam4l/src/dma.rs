@@ -4,9 +4,9 @@ use core::cell::Cell;
 use core::{cmp, intrinsics};
 use kernel::common::cells::VolatileCell;
 use kernel::common::cells::{OptionalCell, TakeCell};
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
-use pm;
+use crate::pm;
 
 /// Memory registers for a DMA channel. Section 16.6.1 of the datasheet.
 #[repr(C)]

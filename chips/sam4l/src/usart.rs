@@ -6,13 +6,13 @@ use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ReturnCode;
 
-use dma;
-use pm;
+use crate::dma;
+use crate::pm;
 
 // Register map for SAM4L USART
 #[repr(C)]

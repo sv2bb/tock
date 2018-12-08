@@ -8,12 +8,12 @@ use core::cell::Cell;
 use core::ptr;
 use core::slice;
 use kernel::common::cells::{OptionalCell, VolatileCell};
-use kernel::common::registers::{FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use pm;
-use pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
-use scif;
+use crate::pm;
+use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
+use crate::scif;
 
 // The following macros provide some diagnostics and panics(!)
 // while this module is experimental and should eventually be removed or

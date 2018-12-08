@@ -10,14 +10,14 @@
 //! CHANGE THIS DRIVER, TEST RIGOROUSLY!!!
 
 use core::cell::Cell;
-use dma::{DMAChannel, DMAClient, DMAPeripheral};
+use crate::dma::{DMAChannel, DMAClient, DMAPeripheral};
 use kernel::common::cells::{OptionalCell, TakeCell};
 use kernel::common::peripherals::{PeripheralManagement, PeripheralManager};
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::ClockInterface;
-use pm;
+use crate::pm;
 
 // Listing of all registers related to the TWIM peripheral.
 // Section 27.9 of the datasheet

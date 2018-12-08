@@ -5,11 +5,11 @@
 //! - Date: July 16, 2015
 
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil::time::{self, Alarm, Freq16KHz, Time};
 use kernel::hil::Controller;
-use pm::{self, PBDClock};
+use crate::pm::{self, PBDClock};
 
 /// Minimum number of clock tics to make sure ALARM0 register is synchronized
 ///

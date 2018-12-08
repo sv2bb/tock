@@ -3,10 +3,10 @@
 use core::cell::Cell;
 use cortexm4::support;
 use kernel::common::math::log_base_two_u64;
-use kernel::common::registers::{FieldValue, ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
-use pm::{self, Clock, PBDClock};
+use crate::pm::{self, Clock, PBDClock};
 
 #[repr(C)]
 pub struct WdtRegisters {

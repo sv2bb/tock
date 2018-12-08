@@ -1,6 +1,7 @@
 use capsules::test::aes::TestAes128Ctr;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use nrf5x::aes::{AesECB, AESECB};
+use kernel::static_init;
 
 /// To run the tests add the following `main.rs::reset_handler` somewhere after that the AES
 /// peripheral has been initialized:

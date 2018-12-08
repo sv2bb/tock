@@ -13,6 +13,7 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
+use kernel::debug;
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;

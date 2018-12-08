@@ -13,11 +13,6 @@
 #![warn(unreachable_pub)]
 #![no_std]
 
-extern crate tock_cells;
-extern crate tock_registers;
-
-pub use tock_registers::{register_bitfields, register_bitmasks};
-
 pub mod capabilities;
 #[macro_use]
 pub mod common;

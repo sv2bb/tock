@@ -10,7 +10,7 @@ use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::common::cells::OptionalCell;
-use kernel::common::registers::{ReadOnly, ReadWrite, WriteOnly};
+use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::ReturnCode;
 use nrf5x::pinmux;

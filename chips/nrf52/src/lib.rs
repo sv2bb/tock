@@ -12,9 +12,7 @@ extern crate tock_rt0;
 #[macro_use(
     debug,
     debug_verbose,
-    debug_gpio,
-    register_bitfields,
-    register_bitmasks
+    debug_gpio
 )]
 extern crate kernel;
 
@@ -32,4 +30,4 @@ pub mod spi;
 pub mod uart;
 pub mod uicr;
 
-pub use crt1::init;
+pub use crate::crt1::init;

@@ -4,6 +4,7 @@ use cc26x2::i2c;
 use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::i2c::I2CMaster;
+use kernel::debug;
 
 // ===========================================
 // Scan for I2C Slaves

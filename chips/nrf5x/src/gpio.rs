@@ -10,8 +10,9 @@ use kernel::common::cells::OptionalCell;
 use kernel::common::registers::{register_bitfields, FieldValue, ReadWrite};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::debug;
 
-// #[cfg(feature = "nrf51")]
+#[cfg(feature = "nrf51")]
 const NUM_GPIOTE: usize = 4;
 #[cfg(feature = "nrf52")]
 const NUM_GPIOTE: usize = 8;

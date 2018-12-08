@@ -104,7 +104,7 @@ use kernel::hil::time::Frequency;
 use kernel::ReturnCode;
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::BLE_ADVERTISING as usize;
 
 /// Advertisement Buffer

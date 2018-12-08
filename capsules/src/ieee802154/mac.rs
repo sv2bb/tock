@@ -12,7 +12,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::hil::radio;
 use kernel::ReturnCode;
-use net::ieee802154::{Header, MacAddress};
+use crate::net::ieee802154::{Header, MacAddress};
 
 pub trait Mac {
     /// Initializes the layer; may require a buffer to temporarily retaining frames to be

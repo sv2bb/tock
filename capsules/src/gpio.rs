@@ -44,7 +44,7 @@
 //! have had interrupts enabled.
 
 /// Syscall driver number.
-use driver;
+use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::GPIO as usize;
 
 use kernel::common::cells::OptionalCell;

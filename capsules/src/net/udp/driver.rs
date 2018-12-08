@@ -9,12 +9,12 @@
 use core::cell::Cell;
 use core::{cmp, mem};
 use kernel::{AppId, AppSlice, Callback, Driver, Grant, ReturnCode, Shared};
-use net::ipv6::ip_utils::IPAddr;
-use net::stream::encode_u16;
-use net::stream::encode_u8;
-use net::stream::SResult;
-use net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
-use net::udp::udp_send::{UDPSendClient, UDPSender};
+use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::stream::encode_u16;
+use crate::net::stream::encode_u8;
+use crate::net::stream::SResult;
+use crate::net::udp::udp_recv::{UDPReceiver, UDPRecvClient};
+use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 
 /// Syscall number
 pub const DRIVER_NUM: usize = 0x30002;

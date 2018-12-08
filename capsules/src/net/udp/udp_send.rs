@@ -7,10 +7,10 @@
 
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
-use net::ipv6::ip_utils::IPAddr;
-use net::ipv6::ipv6::TransportHeader;
-use net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
-use net::udp::udp::UDPHeader;
+use crate::net::ipv6::ip_utils::IPAddr;
+use crate::net::ipv6::ipv6::TransportHeader;
+use crate::net::ipv6::ipv6_send::{IP6SendClient, IP6Sender};
+use crate::net::udp::udp::UDPHeader;
 
 /// The `send_done` function in this trait is invoked after the UDPSender
 /// has completed sending the requested packet. Note that the

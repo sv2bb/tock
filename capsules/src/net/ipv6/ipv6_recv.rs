@@ -1,7 +1,7 @@
 use kernel::common::cells::OptionalCell;
 use kernel::ReturnCode;
-use net::ipv6::ipv6::IP6Header;
-use net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
+use crate::net::ipv6::ipv6::IP6Header;
+use crate::net::sixlowpan::sixlowpan_state::SixlowpanRxClient;
 
 // To provide some context for the entire rx chain:
 /*

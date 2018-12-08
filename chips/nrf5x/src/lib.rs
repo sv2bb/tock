@@ -7,8 +7,6 @@
     debug,
     debug_verbose,
     debug_gpio,
-    register_bitfields,
-    register_bitmasks
 )]
 extern crate kernel;
 

@@ -15,6 +15,7 @@ use kernel::common::StaticRef;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::ReturnCode;
+use kernel::debug;
 use crate::pm;
 use crate::scif;
 

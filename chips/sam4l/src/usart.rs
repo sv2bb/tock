@@ -970,7 +970,7 @@ impl hil::spi::SpiMaster for USART {
 
     fn read_write_bytes(
         &self,
-        mut write_buffer: &'static mut [u8],
+        write_buffer: &'static mut [u8],
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) -> ReturnCode {

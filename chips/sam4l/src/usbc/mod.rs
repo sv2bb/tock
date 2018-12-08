@@ -11,6 +11,7 @@ use kernel::common::cells::{OptionalCell, VolatileCell};
 use kernel::common::registers::{register_bitfields, FieldValue, LocalRegisterCopy, ReadOnly, ReadWrite, WriteOnly};
 use kernel::common::StaticRef;
 use kernel::hil;
+use kernel::debug as debugln;
 use crate::pm;
 use crate::pm::{disable_clock, enable_clock, Clock, HSBClock, PBBClock};
 use crate::scif;
@@ -21,7 +22,7 @@ use crate::scif;
 
 macro_rules! client_warn {
     [ $( $arg:expr ),+ ] => {
-        debug!($( $arg ),+);
+        debugln!($( $arg ),+);
     };
 }
 
@@ -33,7 +34,7 @@ macro_rules! client_err {
 
 macro_rules! debug1 {
     [ $( $arg:expr ),+ ] => {
-        {} // debug!($( $arg ),+)
+        {} // debugln!($( $arg ),+)
     };
 }
 
@@ -705,10 +706,10 @@ impl Usbc<'a> {
                         endpoint_enable_interrupts(endpoint, EndpointControl::RXOUTE::SET);
                         *endpoint_state = EndpointState::BulkOut(BulkOutState::Init);
                     }
-                    _ => debug!("Ignoring superfluous resume"),
+                    _ => debugln!("Ignoring superfluous resume"),
                 }
             }
-            _ => debug!("Ignoring inappropriate resume"),
+            _ => debugln!("Ignoring inappropriate resume"),
         });
     }
 
@@ -1220,7 +1221,7 @@ impl Usbc<'a> {
                     debug1!("\tep{}: RXOUT", endpoint);
 
                     if !usbc_regs().uecon[endpoint].is_set(EndpointControl::FIFOCON) {
-                        debug!("Got RXOUT but not FIFOCON");
+                        debugln!("Got RXOUT but not FIFOCON");
                         return;
                     }
                     // A bank is full of an OUT packet
@@ -1288,7 +1289,7 @@ impl Usbc<'a> {
                     debug1!("\tep{}: TXIN", endpoint);
 
                     if !usbc_regs().uecon[endpoint].is_set(EndpointControl::FIFOCON) {
-                        debug!("Got TXIN but not FIFOCON");
+                        debugln!("Got TXIN but not FIFOCON");
                         return;
                     }
                     // A bank is free to write an IN packet

@@ -31,6 +31,7 @@ use kernel::common::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOn
 use kernel::common::StaticRef;
 use kernel::hil::analog_comparator;
 use kernel::ReturnCode;
+use kernel::debug;
 use crate::pm;
 
 /// Representation of an AC channel on the SAM4L.

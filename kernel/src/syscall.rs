@@ -47,6 +47,11 @@ pub enum Syscall {
     ///
     /// SVC_NUM = 4
     MEMOP { operand: usize, arg0: usize },
+
+    /// Return to kernel and mark that this process has run to completion
+    ///
+    /// SVC_NUM = 5
+    EXIT { exit_status: usize },
 }
 
 /// Why the process stopped executing and execution returned to the kernel.
@@ -204,6 +209,9 @@ pub fn arguments_to_syscall(
         4 => Some(Syscall::MEMOP {
             operand: r0,
             arg0: r1,
+        }),
+        5 => Some(Syscall::EXIT {
+            exit_status: r0,
         }),
         _ => None,
     }

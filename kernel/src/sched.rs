@@ -40,6 +40,7 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+    processes_graph: [[usize; 2]; 2],
 }
 
 impl Kernel {
@@ -49,8 +50,13 @@ impl Kernel {
             processes: processes,
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
+            processes_graph: [[0,1], [1, 2]],
         }
     }
+
+    // crate fn add_processes_graph(&self, process_graph: &[usize]) {
+    //     self.processes_graph.set(process_graph);
+    // }
 
     /// Something was scheduled for a process, so there is more work to do.
     crate fn increment_work(&self) {
@@ -210,13 +216,21 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
+        let mut column: usize = 0;
+        let mut row: usize = 0;
         loop {
             unsafe {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
+                
+                // let mut current_proc: Option<&'static dyn process::ProcessType> = self.processes[self.processes_graph[column][row]];
+                let current_proc = self.processes[self.processes_graph[column][row]];
 
-                for p in self.processes.iter() {
-                    p.map(|process| {
+                // let curr_proc = 
+                // current_proc.map(|process| );
+
+                if current_proc.unwrap().get_state() != process::State::Ended {
+                    current_proc.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
                     if chip.has_pending_interrupts()
@@ -225,6 +239,29 @@ impl Kernel {
                         break;
                     }
                 }
+                else{
+                    if column == 1 && row == 1 {
+                        column = 0;
+                        row = 0;
+                    };
+                    if column == 0 {column = 1};
+                    if column == 1 {
+                        row = row + 1;
+                        column = column - 1;
+                    }
+                }
+
+                // for p in self.processes.iter() {
+
+                //     p.map(|process| {
+                //         self.do_process(platform, chip, process, ipc);
+                //     });
+                //     if chip.has_pending_interrupts()
+                //         || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                //     {
+                //         break;
+                //     }
+                // }
 
                 chip.atomic(|| {
                     if !chip.has_pending_interrupts()
@@ -411,6 +448,19 @@ impl Kernel {
                                     }
                                     process.set_syscall_return_value(res.into());
                                 }
+                                Syscall::EXIT {
+                                    exit_status,
+                                } => {
+                                    process.end_process();
+                                    process.set_ended_state();
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!(
+                                            "[{:?}] exit({})",
+                                            appid,
+                                            exit_status
+                                        );
+                                    }
+                                }
                             }
                         }
                         Some(ContextSwitchReason::TimesliceExpired) => {
@@ -478,6 +528,10 @@ impl Kernel {
                     // Do nothing
                 }
                 process::State::StoppedFaulted => {
+                    break;
+                    // Do nothing
+                }
+                process::State::Ended => {
                     break;
                     // Do nothing
                 }

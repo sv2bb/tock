@@ -137,6 +137,9 @@ pub trait ProcessType {
     /// `FaultResponse` for this process to occur.
     fn set_fault_state(&self);
 
+    /// Put this process in the ended state
+    fn set_ended_state(&self);
+
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
@@ -182,6 +185,8 @@ pub trait ProcessType {
     /// Debug function to update the kernel on where the process heap starts.
     /// Also optional.
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
+
+    fn end_process(&self);
 
     // additional memop like functions
 
@@ -375,6 +380,9 @@ pub enum State {
     /// processes yet. It can also happen if an process is terminated and all
     /// of its state is reset as if it has not been executed yet.
     Unstarted,
+
+    /// The process has run to completion and exited.
+    Ended,
 }
 
 /// The reaction the kernel should take when an app encounters a fault.
@@ -768,6 +776,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         }
     }
 
+    fn set_ended_state(&self) {
+        self.state.set(State::Ended);
+    }
+
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.dequeue().map(|cb| {
@@ -827,6 +839,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
                 debug.app_heap_start_pointer = Some(heap_pointer);
             });
         }
+    }
+
+    fn end_process(&self){
+        self.terminate();
     }
 
     fn setup_mpu(&self) {

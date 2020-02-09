@@ -187,8 +187,13 @@ pub unsafe fn reset_handler() {
 
     set_pin_primary_functions();
 
+    // define process graph
+    // let processes_graph: [[usize, 2], 2] = [[0,1], [1, 2]];
+
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
+    // board_kernel.set_processes_graph(processes_graph);
+    
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let process_management_capability =

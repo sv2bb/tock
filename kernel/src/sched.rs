@@ -221,34 +221,42 @@ impl Kernel {
         loop {
             unsafe {
                 chip.service_pending_interrupts();
+                // debug!("in kernel loop");
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
                 
-                // let mut current_proc: Option<&'static dyn process::ProcessType> = self.processes[self.processes_graph[column][row]];
-                let current_proc = self.processes[self.processes_graph[column][row]];
+                let current_proc: Option<&'static dyn process::ProcessType> = self.processes[self.processes_graph[column][row]];
+                // let current_proc = self.processes[self.processes_graph[0][0]];
 
-                // let curr_proc = 
-                // current_proc.map(|process| );
+                // let current_proc = self.processes.iter().find(|entry| {
+                //     entry.map_or(false, |entry2| {
+                //         entry.get_state() != process::State::Ended
+                //     })
+                // });
+                
+                // let current_proc = self.processes.iter().find(|entry| {
+                //         entry2.unwrap().get_state() != process::State::Ended;
+                // });
 
                 if current_proc.unwrap().get_state() != process::State::Ended {
                     current_proc.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
-                    if chip.has_pending_interrupts()
-                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                    {
-                        break;
-                    }
+                    // // self.do_process(platform, chip, current_proc.unwrap(), ipc);
+                    // if chip.has_pending_interrupts()
+                    //     || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                    // {
+                    //     break;
+                    // }
                 }
                 else{
-                    if column == 1 && row == 1 {
+                    if column == 0 && row == 0 {
                         column = 0;
-                        row = 0;
-                    };
-                    if column == 0 {column = 1};
-                    if column == 1 {
-                        row = row + 1;
-                        column = column - 1;
+                        row = 1;
                     }
+                    else if column == 0 && row == 1 {
+                        column = 1;
+                        row = 1;
+                    };
                 }
 
                 // for p in self.processes.iter() {

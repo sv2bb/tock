@@ -216,14 +216,21 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
+        let number_of_processes: usize = self.processes.len();
+        // Array marking whether a process is ready to run or not
+        let ready_procs: [usize; number_of_processes] = [0; number_of_processes];
+
+        // Column, row to index into processes graph
         let mut column: usize = 0;
         let mut row: usize = 0;
         loop {
             unsafe {
                 chip.service_pending_interrupts();
-                // debug!("in kernel loop");
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
                 
+                // Graph analysis to find ready to run processes
+
+
                 let current_proc: Option<&'static dyn process::ProcessType> = self.processes[self.processes_graph[column][row]];
                 // let current_proc = self.processes[self.processes_graph[0][0]];
 
@@ -282,6 +289,8 @@ impl Kernel {
             };
         }
     }
+
+    crate fn get_ready_processes<
 
     unsafe fn do_process<P: Platform, C: Chip>(
         &self,

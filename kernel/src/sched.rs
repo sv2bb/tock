@@ -208,6 +208,44 @@ impl Kernel {
         }
     }
 
+    pub fn get_ready_processes(&self, ready_procs: &mut [usize])
+    {
+        let mut is_dependent: bool = false;
+        let mut middle_of_graph: bool = false;
+        // loop through graph edges 
+        for x in 0..self.processes_graph.len() {
+            is_dependent = false;
+            // check if left side of edge is in any other right sides
+            if ready_procs[self.processes_graph[0][x]] == 0 {
+                middle_of_graph = true;
+                // if not, mark that one as ready to run
+                for y in 0..self.processes_graph.len() {
+                    if ready_procs[self.processes_graph[0][x]] == ready_procs[self.processes_graph[1][y]]{
+                        if x == y {
+                            ready_procs[self.processes_graph[0][x]] = 1;
+                        }
+                         else{
+                            is_dependent = true;
+                        }
+                        break;
+                    }
+                }
+                if is_dependent == false {ready_procs[self.processes_graph[0][x]] = 1;}
+            }
+        }
+
+        if middle_of_graph == false {
+            for x in 0..self.processes_graph.len() {
+
+                if ready_procs[self.processes_graph[1][x]] == 0 {
+                    ready_procs[self.processes_graph[1][x]] = 1;
+                }
+            } 
+        }
+
+    }
+
+
     /// Main loop.
     pub fn kernel_loop<P: Platform, C: Chip>(
         &'static self,
@@ -218,7 +256,9 @@ impl Kernel {
     ) {
         let number_of_processes: usize = self.processes.len();
         // Array marking whether a process is ready to run or not
-        let ready_procs: [usize; number_of_processes] = [0; number_of_processes];
+        // ALERT!!!!! REPLACE WITH NUMBER OF ON BOARD PROCESSES
+        // HARD CODED!!
+        let mut ready_procs: [usize; 10] = [0; 10];
 
         // Column, row to index into processes graph
         let mut column: usize = 0;
@@ -229,54 +269,48 @@ impl Kernel {
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
                 
                 // Graph analysis to find ready to run processes
+                get_ready_processes(&ready_procs);
 
 
-                let current_proc: Option<&'static dyn process::ProcessType> = self.processes[self.processes_graph[column][row]];
-                // let current_proc = self.processes[self.processes_graph[0][0]];
+                // let current_proc: Option<&'static dyn process::ProcessType> = self.processes[self.processes_graph[column][row]];
+                // let current_proc = self.processes[self.processes_graph[0][0] ];
 
-                // let current_proc = self.processes.iter().find(|entry| {
-                //     entry.map_or(false, |entry2| {
-                //         entry.get_state() != process::State::Ended
-                //     })
+                // Find a process that is ready to run & has not ended
+
+                // for x in 0..ready_procs.len(){
+
+                // }
+
+                // let current_proc_num = self.ready_procs.iter().position(|&&entry| {
+                //         entry.get_state() != process::State::Ended && 
                 // });
+
+                let current_proc = self.processes.iter().find(|&&entry| {
+                    entry.map_or(false, |entry2| {
+                        entry.get_state() != process::State::Ended && ready_procs[position()] == 1;
+                    })
+                });
                 
                 // let current_proc = self.processes.iter().find(|entry| {
                 //         entry2.unwrap().get_state() != process::State::Ended;
                 // });
 
-                if current_proc.unwrap().get_state() != process::State::Ended {
+                // if current_proc.unwrap().get_state() != process::State::Ended {
                     current_proc.map(|process| {
                         self.do_process(platform, chip, process, ipc);
                     });
-                    // // self.do_process(platform, chip, current_proc.unwrap(), ipc);
-                    // if chip.has_pending_interrupts()
-                    //     || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                    // {
-                    //     break;
-                    // }
-                }
-                else{
-                    if column == 0 && row == 0 {
-                        column = 0;
-                        row = 1;
-                    }
-                    else if column == 0 && row == 1 {
-                        column = 1;
-                        row = 1;
-                    };
-                }
-
-                // for p in self.processes.iter() {
-
-                //     p.map(|process| {
-                //         self.do_process(platform, chip, process, ipc);
-                //     });
-                //     if chip.has_pending_interrupts()
-                //         || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                //     {
-                //         break;
-                //     }
                 // }
+                // else{
+                //     if column == 0 && row == 0 {
+                //         column = 0;
+                //         row = 1;
+                //     }
+                //     else if column == 0 && row == 1 {
+                //         column = 1;
+                //         row = 1;
+                //     };
+                // }
+
 
                 chip.atomic(|| {
                     if !chip.has_pending_interrupts()
@@ -289,8 +323,6 @@ impl Kernel {
             };
         }
     }
-
-    crate fn get_ready_processes<
 
     unsafe fn do_process<P: Platform, C: Chip>(
         &self,

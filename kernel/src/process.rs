@@ -778,6 +778,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn set_ended_state(&self) {
         self.state.set(State::Ended);
+        debug!("Process {} Ended", self.appid().idx())
     }
 
     fn dequeue_task(&self) -> Option<Task> {

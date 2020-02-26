@@ -217,26 +217,31 @@ impl Kernel {
             // check if left side of edge is in any other right sides
             if ready_procs[self.processes_graph[0][x]] == 0 {
                 middle_of_graph = true;
-                // if not, mark that one as ready to run
                 for y in 0..self.processes_graph.len() {
                     if ready_procs[self.processes_graph[0][x]] == ready_procs[self.processes_graph[1][y]]{
                         if x == y {
                             ready_procs[self.processes_graph[0][x]] = 1;
                         }
-                         else{
+                        else if self.processes[self.processes_graph[0][y]].unwrap().get_state() == process::State::Ended {
+                        	is_dependent = false;
+                        }
+                        else{
+                        	
                             is_dependent = true;
                         }
                         break;
                     }
                 }
-                if is_dependent == false {ready_procs[self.processes_graph[0][x]] = 1;}
+                if is_dependent == false {
+                	ready_procs[self.processes_graph[0][x]] = 1;
+                }
             }
         }
 
         if middle_of_graph == false {
             for x in 0..self.processes_graph.len() {
 
-                if ready_procs[self.processes_graph[1][x]] == 0 {
+                if self.processes[self.processes_graph[0][x]].unwrap().get_state() == process::State::Ended {
                     ready_procs[self.processes_graph[1][x]] = 1;
                 }
             } 
@@ -252,11 +257,6 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
-        // let number_of_processes: usize = self.processes.len();
-        // Array marking whether a process is ready to run or not
-        // ALERT!!!!! REPLACE WITH NUMBER OF ON BOARD PROCESSES
-        // HARD CODED!!
-        // let mut ready_procs: [usize; self.processes.len()] = vec![0; self.processes.len()];
         let mut ready_procs: [usize; 10] = [0; 10];
 
         loop {
@@ -264,7 +264,7 @@ impl Kernel {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
                 
-                // Graph analysis to find ready to run processes
+                // Graph analysis to  find ready to run processes
                 self.get_ready_processes(&mut ready_procs);
 
 
@@ -279,6 +279,12 @@ impl Kernel {
                         self.do_process(platform, chip, process, ipc)
                     })
                 });
+
+                if chip.has_pending_interrupts()
+                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                    {
+                        continue;
+                    }
 
 
                 chip.atomic(|| {

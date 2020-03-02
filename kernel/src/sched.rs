@@ -50,7 +50,7 @@ impl Kernel {
             processes: processes,
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
-            processes_graph: [[0,1], [1, 2]],
+            processes_graph: [[0, 0], [1, 2]],
         }
     }
 
@@ -267,24 +267,27 @@ impl Kernel {
                 // Graph analysis to  find ready to run processes
                 self.get_ready_processes(&mut ready_procs);
 
-
-                let current_proc = self.processes.iter().find(|&entry| {
+                let ready_procs_iter = self.processes.iter().filter(|&entry| {
                     entry.map_or(false, |entry2| {
                         entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
                     })
-                });
+	            });
 
-                current_proc.map(|option_proc| {
-                    option_proc.map(|process| {
-                        self.do_process(platform, chip, process, ipc)
-                    })
-                });
+                for p in ready_procs_iter {
+	                
+	                // p.map(|option_proc| {
+	                    p.map(|process| {
+	                        self.do_process(platform, chip, process, ipc)
+	                    });
+	                // });
 
-                if chip.has_pending_interrupts()
+
+	                if chip.has_pending_interrupts()
                         || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
                     {
-                        continue;
+                        break;
                     }
+	            }
 
 
                 chip.atomic(|| {

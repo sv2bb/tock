@@ -50,7 +50,7 @@ impl Kernel {
             processes: processes,
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
-            processes_graph: [[0, 0], [1, 2]],
+            processes_graph: [[1, 0], [2, 2]],
         }
     }
 
@@ -218,7 +218,7 @@ impl Kernel {
             if ready_procs[self.processes_graph[0][x]] == 0 {
                 middle_of_graph = true;
                 for y in 0..self.processes_graph.len() {
-                    if ready_procs[self.processes_graph[0][x]] == ready_procs[self.processes_graph[1][y]]{
+                    if self.processes_graph[0][x] == self.processes_graph[1][y]{
                         if x == y {
                             ready_procs[self.processes_graph[0][x]] = 1;
                         }
@@ -266,13 +266,15 @@ impl Kernel {
                 
                 // Graph analysis to  find ready to run processes
                 self.get_ready_processes(&mut ready_procs);
-
+                debug!("Array: {:?}", ready_procs);
                 let ready_procs_iter = self.processes.iter().filter(|&entry| {
                     entry.map_or(false, |entry2| {
                         entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
                     })
 	            });
 
+	            let ready_procs_iter_count = ready_procs_iter.clone();
+                // debug!("LENGTH OF ARRAY: {:?}", ready_procs_iter_count.count());
                 for p in ready_procs_iter {
 	                
 	                // p.map(|option_proc| {

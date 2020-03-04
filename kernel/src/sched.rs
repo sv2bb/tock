@@ -215,14 +215,14 @@ impl Kernel {
         for x in 0..self.processes_graph.len() {
             is_dependent = false;
             // check if left side of edge is in any other right sides
-            if ready_procs[self.processes_graph[0][x]] == 0 {
+            if ready_procs[self.processes_graph[x][0]] == 0 {
                 middle_of_graph = true;
                 for y in 0..self.processes_graph.len() {
-                    if self.processes_graph[0][x] == self.processes_graph[1][y]{
+                    if self.processes_graph[x][0] == self.processes_graph[y][1]{
                         if x == y {
-                            ready_procs[self.processes_graph[0][x]] = 1;
+                            ready_procs[self.processes_graph[x][0]] = 1;
                         }
-                        else if self.processes[self.processes_graph[0][y]].unwrap().get_state() == process::State::Ended {
+                        else if self.processes[self.processes_graph[y][0]].unwrap().get_state() == process::State::Ended {
                         	is_dependent = false;
                         }
                         else{
@@ -233,7 +233,7 @@ impl Kernel {
                     }
                 }
                 if is_dependent == false {
-                	ready_procs[self.processes_graph[0][x]] = 1;
+                	ready_procs[self.processes_graph[x][0]] = 1;
                 }
             }
         }
@@ -241,8 +241,8 @@ impl Kernel {
         if middle_of_graph == false {
             for x in 0..self.processes_graph.len() {
 
-                if self.processes[self.processes_graph[0][x]].unwrap().get_state() == process::State::Ended {
-                    ready_procs[self.processes_graph[1][x]] = 1;
+                if self.processes[self.processes_graph[x][0]].unwrap().get_state() == process::State::Ended {
+                    ready_procs[self.processes_graph[x][1]] = 1;
                 }
             } 
         }
@@ -258,7 +258,6 @@ impl Kernel {
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
         let mut ready_procs: [usize; 10] = [0; 10];
-
         loop {
             unsafe {
                 chip.service_pending_interrupts();
@@ -266,7 +265,6 @@ impl Kernel {
                 
                 // Graph analysis to  find ready to run processes
                 self.get_ready_processes(&mut ready_procs);
-                debug!("Array: {:?}", ready_procs);
                 let ready_procs_iter = self.processes.iter().filter(|&entry| {
                     entry.map_or(false, |entry2| {
                         entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
@@ -274,15 +272,10 @@ impl Kernel {
 	            });
 
 	            let ready_procs_iter_count = ready_procs_iter.clone();
-                // debug!("LENGTH OF ARRAY: {:?}", ready_procs_iter_count.count());
                 for p in ready_procs_iter {
-	                
-	                // p.map(|option_proc| {
 	                    p.map(|process| {
 	                        self.do_process(platform, chip, process, ipc)
 	                    });
-	                // });
-
 
 	                if chip.has_pending_interrupts()
                         || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
@@ -290,7 +283,6 @@ impl Kernel {
                         break;
                     }
 	            }
-
 
                 chip.atomic(|| {
                     if !chip.has_pending_interrupts()

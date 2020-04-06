@@ -93,6 +93,8 @@ pub fn load_processes<C: Chip>(
             app_memory_size -= memory_offset;
         }
     }
+
+    //set up each proc's output buffer
 }
 
 /// This trait is implemented by process structs.
@@ -168,6 +170,15 @@ pub trait ProcessType {
 
     /// The lowest address of the grant region for the process.
     fn kernel_memory_break(&self) -> *const u8;
+
+    /// The input buffer for a process.
+    fn input_buffer(&self) -> *const u8;
+
+    //  Sets the output buffer for each process (next process's input buffer)
+    fn set_all_ouput_buffers(&self);
+
+    /// The output_buffer for a process.
+    fn output_buffer(&self) -> *const u8;
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -253,6 +264,7 @@ pub trait ProcessType {
     /// Print out the full state of the process: its memory map, its
     /// context, and the state of the memory protection unit (MPU).
     unsafe fn print_full_process(&self, writer: &mut dyn Write);
+
 
     // debug
 
@@ -530,6 +542,12 @@ pub struct Process<'a, C: 'static + Chip> {
 
     /// Pointer to the end of the allocated (and MPU protected) grant region.
     kernel_memory_break: Cell<*const u8>,
+
+    /// Pointer to the process's input buffer.
+    input_buffer: Cell<*const u8>,
+
+    /// Pointer to the process's output buffer.
+    output_buffer: Cell<*const u8>,
 
     /// Copy of where the kernel memory break is when the app is first started.
     /// This is handy if the app is restarted so we know where to reset
@@ -812,6 +830,14 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn kernel_memory_break(&self) -> *const u8 {
         self.kernel_memory_break.get()
+    }
+
+    fn input_buffer(&self) -> *const u8 {
+        self.input_buffer.get()
+    }
+
+    fn output_buffer(&self) -> *const u8 {
+        self.output_buffer.get()
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -1329,14 +1355,15 @@ impl<C: 'static + Chip> Process<'a, C> {
             // Initialize MPU region configuration.
             let mut mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig = Default::default();
 
+            // CHANGED TO READWRITEEXECUTE FOR INPUT BUFFER ADDITION
             // Allocate MPU region for flash.
             if chip
                 .mpu()
                 .allocate_region(
                     app_flash_address,
+                    app_flash_size, 
                     app_flash_size,
-                    app_flash_size,
-                    mpu::Permissions::ReadExecuteOnly,
+                    mpu::Permissions::ReadWriteExecute,
                     &mut mpu_config,
                 )
                 .is_none()
@@ -1369,6 +1396,9 @@ impl<C: 'static + Chip> Process<'a, C> {
             // Make room to store this process's metadata.
             let process_struct_offset = mem::size_of::<Process<C>>();
 
+            // Make room for input buffer - 64 bytes;
+            let input_buffer_offset = mem::size_of::usize*16;
+
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
             // Provide the app with plenty of initial process accessible memory.
             let initial_kernel_memory_size =
@@ -1387,7 +1417,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 remaining_app_memory as *const u8,
                 remaining_app_memory_size,
                 min_total_memory_size,
-                initial_app_memory_size,
+                initial_app_memory_size,vds 
                 initial_kernel_memory_size,
                 mpu::Permissions::ReadWriteOnly,
                 &mut mpu_config,
@@ -1445,6 +1475,10 @@ impl<C: 'static + Chip> Process<'a, C> {
             kernel_memory_break = kernel_memory_break.offset(-(process_struct_offset as isize));
             let process_struct_memory_location = kernel_memory_break;
 
+            // Last thing is actually the input buffer
+            kernel_memory_break = kernel_memory_break.offset(-(input_buffer_offset as isize));
+            let input_buffer_location = kernel_memory_break;
+
             // Determine the debug information to the best of our
             // understanding. If the app is doing all of the PIC fixup and
             // memory management we don't know much.
@@ -1461,6 +1495,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = Cell::new(kernel_memory_break);
+            process.input_buffer = Cell::new(input_buffer_location)
             process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;

@@ -95,7 +95,12 @@ pub fn load_processes<C: Chip>(
     }
 
     //set up each proc's output buffer
+    for i in 0..procs.len()-1{
+        procs[i].unwrap().set_output_buffer_location(procs[i+1].unwrap().input_buffer());
+    }
 }
+
+
 
 /// This trait is implemented by process structs.
 pub trait ProcessType {
@@ -142,6 +147,9 @@ pub trait ProcessType {
     /// Put this process in the ended state
     fn set_ended_state(&self);
 
+    /// Set up output buffer for process
+    fn set_output_buffer_location(&self, buffer_location: *const u8);
+
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
@@ -174,8 +182,6 @@ pub trait ProcessType {
     /// The input buffer for a process.
     fn input_buffer(&self) -> *const u8;
 
-    //  Sets the output buffer for each process (next process's input buffer)
-    fn set_all_ouput_buffers(&self);
 
     /// The output_buffer for a process.
     fn output_buffer(&self) -> *const u8;
@@ -799,6 +805,10 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         debug!("Process {} Ended", self.appid().idx())
     }
 
+    fn set_output_buffer_location(&self, buffer_location: *const u8){
+        self.output_buffer.set(buffer_location);
+    }
+
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.dequeue().map(|cb| {
@@ -1397,7 +1407,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             let process_struct_offset = mem::size_of::<Process<C>>();
 
             // Make room for input buffer - 64 bytes;
-            let input_buffer_offset = mem::size_of::usize*16;
+            let input_buffer_offset = mem::size_of::<[usize; 16]>();
 
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
             // Provide the app with plenty of initial process accessible memory.
@@ -1417,7 +1427,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 remaining_app_memory as *const u8,
                 remaining_app_memory_size,
                 min_total_memory_size,
-                initial_app_memory_size,vds 
+                initial_app_memory_size, 
                 initial_kernel_memory_size,
                 mpu::Permissions::ReadWriteOnly,
                 &mut mpu_config,
@@ -1495,7 +1505,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = Cell::new(kernel_memory_break);
-            process.input_buffer = Cell::new(input_buffer_location)
+            process.input_buffer = Cell::new(input_buffer_location);
             process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;

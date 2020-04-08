@@ -44,13 +44,17 @@ pub struct Kernel {
 }
 
 impl Kernel {
+	crate fn get_processes_graph(&self) -> [[usize; 2]; 2] {
+		self.processes_graph
+	}
+
     pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
-            processes_graph: [[1, 0], [2, 2]],
+            processes_graph: [[2, 0], [0, 1]],
         }
     }
 
@@ -325,7 +329,7 @@ impl Kernel {
                     // so go ahead and set things up and switch to executing
                     // the process.
                     process.setup_mpu();
-                    chip.mpu().enable_mpu();
+                    // chip.mpu().enable_mpu();
                     systick.enable(true);
                     let context_switch_reason = process.switch_to();
                     systick.enable(false);

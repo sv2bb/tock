@@ -93,10 +93,10 @@ pub fn load_processes<C: Chip>(
             app_memory_size -= memory_offset;
         }
     }
-
+    let processes_graph = kernel.get_processes_graph();
     //set up each proc's output buffer
-    for i in 0..procs.len()-1{
-        procs[i].unwrap().set_output_buffer_location(procs[i+1].unwrap().input_buffer());
+    for i in 0..processes_graph.len(){
+        procs[processes_graph[i][0]].unwrap().set_output_buffer_location(procs[processes_graph[i][1]].unwrap().input_buffer());
     }
 }
 
@@ -802,7 +802,7 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn set_ended_state(&self) {
         self.state.set(State::Ended);
-        debug!("Process {} Ended", self.appid().idx())
+        // debug!("Process {} Ended", self.appid().idx())
     }
 
     fn set_output_buffer_location(&self, buffer_location: *const u8){

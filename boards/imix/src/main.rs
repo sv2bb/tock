@@ -310,16 +310,9 @@ pub unsafe fn reset_handler() {
     );
     hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
 
-    pub static mut BUFFER: [u8; 512] = [0; 512];
-
-    nv_to_page.read(&mut BUFFER, 0x00, 10);
-
-    while nv_to_page.state != nonvolatile_to_pages::State::Read{}
-
-    debug!("Result from NV read: {}", nv_to_page.buffer.get());
-
-
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, nv_to_page));
+
+    NonvolatileToPages::set_client(nv_to_page, board_kernel);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());

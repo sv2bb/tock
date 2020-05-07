@@ -9,6 +9,9 @@
 #![deny(missing_docs)]
 
 mod imix_components;
+use capsules::nonvolatile_to_pages::NonvolatileToPages;
+use kernel::hil;
+use kernel::hil::nonvolatile_storage::NonvolatileStorage;
 use capsules::alarm::AlarmDriver;
 use capsules::net::ieee802154::MacAddress;
 use capsules::net::ipv6::ip_utils::IPAddr;
@@ -19,6 +22,7 @@ use kernel::capabilities;
 use kernel::common::dynamic_deferred_call::{DynamicDeferredCall, DynamicDeferredCallClientState};
 use kernel::component::Component;
 use kernel::hil::radio;
+use kernel::hil::nonvolatile_storage;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::Controller;
@@ -294,7 +298,28 @@ pub unsafe fn reset_handler() {
         trng: true,
     });
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    sam4l::flashcalw::FLASH_CONTROLLER.configure();
+    pub static mut FLASH_PAGEBUFFER: sam4l::flashcalw::Sam4lPage =
+        sam4l::flashcalw::Sam4lPage::new();
+    let nv_to_page = static_init!(
+        NonvolatileToPages<'static, sam4l::flashcalw::FLASHCALW>,
+        NonvolatileToPages::new(
+            &mut sam4l::flashcalw::FLASH_CONTROLLER,
+            &mut FLASH_PAGEBUFFER
+        )
+    );
+    hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
+
+    pub static mut BUFFER: [u8; 512] = [0; 512];
+
+    nv_to_page.read(&mut BUFFER, 0x00, 10);
+
+    while nv_to_page.state != nonvolatile_to_pages::State::Read{}
+
+    debug!("Result from NV read: {}", nv_to_page.buffer.get());
+
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, nv_to_page));
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());

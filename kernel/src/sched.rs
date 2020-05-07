@@ -1,7 +1,8 @@
-//! Tock core scheduler.
+ //! Tock core scheduler.
 
 use core::cell::Cell;
 use core::ptr::NonNull;
+use crate::common::cells::{OptionalCell, TakeCell};
 
 use crate::callback::{Callback, CallbackId};
 use crate::capabilities;
@@ -18,6 +19,7 @@ use crate::platform::{Chip, Platform};
 use crate::process::{self, Task};
 use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
+use crate::hil::nonvolatile_storage::NonvolatileStorage;
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -40,21 +42,38 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+    /// Graph stucture of processes to dictate how they are run
     processes_graph: [[usize; 2]; 2],
+    /// NV_to_pages object
+    nv_storage: &'static dyn NonvolatileStorage<'static>,
+    /// Variable to indicate to the kernel whether to run processes or not
+    /// For now, should block processes when reading from NV storage
+    can_run_procs: Cell<bool>,
 }
+
+struct GraphInfo{
+    /// Verifies whether or not the struct has already been initialized and written to flash
+    struct_init_indicator: u32 ,
+    /// Array of which processes are ready to run
+    ready_procs_arr: [usize; 10],
+    /// Array of which processes have run to completion (in ended state)
+    ended_procs_arr: [usize; 10],
+}
+
 
 impl Kernel {
 	crate fn get_processes_graph(&self) -> [[usize; 2]; 2] {
 		self.processes_graph
 	}
 
-    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>]) -> Kernel {
+    pub fn new(processes: &'static [Option<&'static dyn process::ProcessType>], nv_storage: &'static dyn NonvolatileStorage) -> Kernel {
         Kernel {
             work: Cell::new(0),
             processes: processes,
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
             processes_graph: [[2, 0], [0, 1]],
+            nv_storage: nv_storage,
         }
     }
 
@@ -261,32 +280,47 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
+        //set client -> sets whatever client gets pinged with read_done()
+        self.nv_storage.set_client();
+        let mut graph_info = GraphInfo{
+            struct_init_indicator: 1321579449,
+            ready_procs_arr: [0; 10],
+            ended_procs_arr: [0; 10],
+        };
+        //Check if a graph struct has been stored in flash, if not initialize one
         let mut ready_procs: [usize; 10] = [0; 10];
+        //which process to run
+        let mut proc_to_run_num = 0;
+        //which processes are ended
+        let mut ended_procs: [usize; 10] = [0; 10];
         loop {
             unsafe {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
-                
-                // Graph analysis to  find ready to run processes
-                self.get_ready_processes(&mut ready_procs);
-                let ready_procs_iter = self.processes.iter().filter(|&entry| {
-                    entry.map_or(false, |entry2| {
-                        entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
-                    })
-	            });
 
-	            let ready_procs_iter_count = ready_procs_iter.clone();
-                for p in ready_procs_iter {
-	                    p.map(|process| {
-	                        self.do_process(platform, chip, process, ipc)
-	                    });
+                /// If NV storage call is happening, block processes from running
+                if can_run_procs == true {
+                    // Graph analysis to  find ready to run processes
+                    self.get_ready_processes(&mut ready_procs);
+                    let ready_procs_iter = self.processes.iter().filter(|&entry| {
+                        entry.map_or(false, |entry2| {
+                            entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
+                        })
+                    });
 
-	                if chip.has_pending_interrupts()
-                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                    {
-                        break;
+                    let ready_procs_iter_count = ready_procs_iter.clone();
+                    for p in ready_procs_iter {
+                        p.map(|process| {
+                            self.do_process(platform, chip, process, ipc)
+                        });
+
+                        if chip.has_pending_interrupts()
+                            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                        {
+                            break;
+                        }
                     }
-	            }
+                }
 
                 chip.atomic(|| {
                     if !chip.has_pending_interrupts()
@@ -564,4 +598,13 @@ impl Kernel {
         }
         systick.reset();
     }
+}
+
+impl hil::nonvolatile_storage::NonvolatileStorageClient<'static>
+for Kernel {
+    fn read_done(&self, buffer: &'static mut [u8], length: usize) {
+        self.can_run_proc = true;
+
+    }
+    fn write_done(&self, buffer: &'static mut [u8], length: usize) {}
 }

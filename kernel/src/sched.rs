@@ -2,7 +2,9 @@
 
 use core::cell::Cell;
 use core::ptr::{NonNull, read};
-use crate::common::cells::{OptionalCell, TakeCell};
+use crate::common::cells::{OptionalCell, MapCell};
+use core::{mem, slice};
+use crate::static_init;
 
 use crate::callback::{Callback, CallbackId};
 use crate::capabilities;
@@ -50,26 +52,28 @@ pub struct Kernel {
     /// Variable to indicate to the kernel whether to run processes or not
     /// For now, should block processes when reading from NV storage
     nv_storage_state: Cell<NVState>,
-    graph_info: Cell<GraphInfo>,
+    graph_info: MapCell<GraphInfo>,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum NVState {
     BeforeRead,
     ReadDone,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
 struct GraphInfo{
     /// Verifies whether or not the struct has already been initialized and written to flash
     init_indicator: u32 ,
     /// Array of which processes are ready to run
-    ready_procs_arr: [usize; 10],
+    ready_procs_arr: [u8; 10],
     /// Array of which processes have run to completion (in ended state)
-    ended_procs_arr: [usize; 10],
+    ended_procs_arr: [u8; 10],
 }
 
 impl GraphInfo {
-    fn new(ready_procs_arr: [usize; 10], ended_procs_arr: [usize; 10]) -> GraphInfo {
+    fn new(ready_procs_arr: [u8; 10], ended_procs_arr: [u8; 10]) -> GraphInfo {
         GraphInfo{
             init_indicator: 1321579449,
             ready_procs_arr,
@@ -93,13 +97,14 @@ impl Kernel {
             processes_graph: [[2, 0], [0, 1]],
             nv_storage: nv_storage,
             nv_storage_state: Cell::new(NVState::BeforeRead),
-            graph_info: Cell::new(GraphInfo::new([0;10], [0;10])),
+            graph_info: MapCell::empty(),
         }
     }
 
-    // crate fn add_processes_graph(&self, process_graph: &[usize]) {
-    //     self.processes_graph.set(process_graph);
-    // }
+    /// Get what state the kernel is in with respect to interacting with the nonvolatile storage
+    fn get_nv_state(&self) -> NVState {
+        self.nv_storage_state.get()
+    }
 
     /// Something was scheduled for a process, so there is more work to do.
     crate fn increment_work(&self) {
@@ -251,7 +256,7 @@ impl Kernel {
         }
     }
 
-    fn get_ready_processes(&self, ready_procs: &mut [usize]) {
+    fn get_ready_processes(&self, ready_procs: &mut [u8]) {
         let mut is_dependent: bool;
         let mut middle_of_graph: bool = false;
         // loop through graph edges 
@@ -300,15 +305,19 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
-        //Check if a graph struct has been stored in flash, if not initialize one
-        let mut ready_procs: [usize; 10] = self.graph_info.ready_procs_arr.get();
+        unsafe{let buffer = static_init!([u8; 24], [0; 24]);
+        self.nv_storage.read(buffer, 0, 24);}
+
+        //NEED TO MOVE THIS TO AFTER READ CALL HAS COMPLETED
+        // let mut ready_procs: [usize; 10] = self.graph_info.take().unwrap().ended_procs_arr;
+        let mut ready_procs: [u8; 10] = [0; 10];
         loop {
             unsafe {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 // While NV storage call is happening, block processes from running
-                if self.nv_storage_state.get() == NVState::ReadDone {
+                if self.get_nv_state() == NVState::ReadDone {
                     // Graph analysis to  find ready to run processes
                     self.get_ready_processes(&mut ready_procs);
                     let ready_procs_iter = self.processes.iter().filter(|&entry| {
@@ -612,23 +621,40 @@ impl Kernel {
 impl NonvolatileStorageClient<'static>
 for Kernel {
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
-        // self.can_run_proc.set();
-        // let data_ptr: *mut GraphInfo = unsafe { mem::transmute(buffer)};
-        let data_ptr = buffer as *mut GraphInfo;
-        let nv_storage_graph_info = unsafe { data_ptr.unwrap() };
-        if nv_storage_graph_info.init_indicator == 1321579449{
-            self.graph_info.set(nv_storage_graph_info);
-            let mut i: usize = 0;
-            let ended_procs: [usize; 10] = self.graph_info.ended_procs_array.get();
-            for p in self.processes.iter(){
-                if ended_procs[i] == 1 {
-                    p.map(|process| {
-                        process.set_ended_state()
-                    });
+        // Convert buffer to graph_info struct
+        let (head, body, tail) = unsafe { buffer.align_to::<GraphInfo>()};
+        debug!("print buffer: {:#?}", buffer);
+        // Check if there was an initialized struct by checking the u32 indicator
+        // If there was, use that struct as the starting place, and put all of the
+        // previously finished processes in the "Ended" state
+        if !head.is_empty() {
+            let nv_storage_graph_info = &body[0];
+            if nv_storage_graph_info.init_indicator == 1321579449 {
+                self.graph_info.put(*nv_storage_graph_info);
+                let mut i: usize = 0;
+                let ended_procs: [u8; 10] = nv_storage_graph_info.ended_procs_arr;
+                for p in self.processes.iter() {
+                    if ended_procs[i] == 1 {
+                        p.map(|process| {
+                            process.set_ended_state()
+                        });
+                    }
+                    i += 1;
                 }
-                i+=1;
             }
         }
+        // If there wasn't any initialized struct, then initialize a clean one and put that
+        // in the kernel object
+        else {
+            let new_graph = GraphInfo{
+                init_indicator: 1321579449,
+                ready_procs_arr: [0;10],
+                ended_procs_arr: [0;10]
+            };
+            self.graph_info.put(new_graph)
+        }
+        debug!("read graph: {:#?}", self.graph_info.take());
+        debug!("size of graph info {}", mem::size_of::<GraphInfo>());
         self.nv_storage_state.set(NVState::ReadDone);
     }
     fn write_done(&self, buffer: &'static mut [u8], length: usize) {}

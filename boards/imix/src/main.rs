@@ -308,11 +308,8 @@ pub unsafe fn reset_handler() {
             &mut FLASH_PAGEBUFFER
         )
     );
-    hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, nv_to_page));
-
-    NonvolatileToPages::set_client(nv_to_page, board_kernel);
 
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
@@ -515,6 +512,10 @@ pub unsafe fn reset_handler() {
     // aes_ccm_test::run();
     // aes_test::run_aes128_ctr();
     // aes_test::run_aes128_cbc();
+
+    // set client calls for nonvolatile storage
+    hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
+    nv_to_page.set_client(board_kernel);
 
     debug!("Initialization complete. Entering main loop");
 

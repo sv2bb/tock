@@ -23,6 +23,7 @@ use crate::returncode::ReturnCode;
 use crate::syscall::{ContextSwitchReason, Syscall};
 use crate::hil::nonvolatile_storage::NonvolatileStorage;
 use crate::hil::nonvolatile_storage::NonvolatileStorageClient;
+use crate::sched::NVState::WriteDone;
 
 /// The time a process is permitted to run before being pre-empted
 const KERNEL_TICK_DURATION_US: u32 = 10000;
@@ -57,8 +58,11 @@ pub struct Kernel {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum NVState {
-    BeforeRead,
+    ReadPending,
     ReadDone,
+    WritePending,
+    WriteDone,
+    Initialized,
 }
 
 #[repr(C, packed)]
@@ -96,7 +100,7 @@ impl Kernel {
             grants_finalized: Cell::new(false),
             processes_graph: [[2, 0], [0, 1]],
             nv_storage: nv_storage,
-            nv_storage_state: Cell::new(NVState::BeforeRead),
+            nv_storage_state: Cell::new(NVState::Initialized),
             graph_info: MapCell::empty(),
         }
     }
@@ -305,40 +309,80 @@ impl Kernel {
         ipc: Option<&ipc::IPC>,
         _capability: &dyn capabilities::MainLoopCapability,
     ) {
-        unsafe{let buffer = static_init!([u8; 24], [0; 24]);
-        self.nv_storage.read(buffer, 0, 24);}
-
+        self.nv_storage_state.set(NVState::WritePending);
+        self.nv_storage_operation(chip);
+        self.nv_storage_state.set(NVState::ReadPending);
+        self.nv_storage_operation(chip);
         //NEED TO MOVE THIS TO AFTER READ CALL HAS COMPLETED
         // let mut ready_procs: [usize; 10] = self.graph_info.take().unwrap().ended_procs_arr;
         let mut ready_procs: [u8; 10] = [0; 10];
         loop {
             unsafe {
-                chip.service_pending_interrupts();
-                DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
+            chip.service_pending_interrupts();
+            DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
-                // While NV storage call is happening, block processes from running
-                if self.get_nv_state() == NVState::ReadDone {
-                    // Graph analysis to  find ready to run processes
-                    self.get_ready_processes(&mut ready_procs);
-                    let ready_procs_iter = self.processes.iter().filter(|&entry| {
-                        entry.map_or(false, |entry2| {
-                            entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
-                        })
+            // While NV storage call is happening, block processes from running
+
+                // Graph analysis to  find ready to run processes
+                self.get_ready_processes(&mut ready_procs);
+                let ready_procs_iter = self.processes.iter().filter(|&entry| {
+                    entry.map_or(false, |entry2| {
+                        entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
+                    })
+                });
+
+                let ready_procs_iter_count = ready_procs_iter.clone();
+                for p in ready_procs_iter {
+                    p.map(|process| {
+                        self.do_process(platform, chip, process, ipc)
                     });
 
-                    let ready_procs_iter_count = ready_procs_iter.clone();
-                    for p in ready_procs_iter {
-                        p.map(|process| {
-                            self.do_process(platform, chip, process, ipc)
-                        });
-
-                        if chip.has_pending_interrupts()
-                            || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
-                        {
-                            break;
-                        }
+                    if chip.has_pending_interrupts()
+                        || DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                    {
+                        break;
                     }
                 }
+
+                chip.atomic(|| {
+                    if !chip.has_pending_interrupts()
+                        && !DynamicDeferredCall::global_instance_calls_pending().unwrap_or(false)
+                        && self.processes_blocked()
+                    {
+                        chip.sleep();
+                    }
+                });
+            };
+        }
+    }
+
+    fn nv_storage_operation<C: Chip>(&self, chip: &C){
+        if self.get_nv_state() == NVState::ReadPending {
+            unsafe{let buffer = static_init!([u8; 24], [0; 24]);
+            self.nv_storage.read(buffer, 0x75000, mem::size_of::<GraphInfo>());}
+        }
+        if self.get_nv_state() == NVState::WritePending {
+            //REPLACE WITH GRAPH_INFO
+            // unsafe{let buffer = static_init!([u8; 24], [0; 24]);
+            let new_graph = GraphInfo{
+                init_indicator: 1321579449,
+                ready_procs_arr: [1;10],
+                ended_procs_arr: [1;10]
+            };
+
+            let write_buffer: [u8; 24] = unsafe{mem::transmute_copy::<GraphInfo, [u8; 24]>(&new_graph)};
+            let buffer = unsafe{static_init!([u8; 24], write_buffer)};
+
+            self.nv_storage.write(buffer, 0x75000, mem::size_of::<GraphInfo>());
+        }
+        loop{
+            if self.get_nv_state() == NVState::WriteDone || self.get_nv_state() == NVState::ReadDone {break;}
+            if self.get_nv_state() == NVState::ReadDone || self.get_nv_state() == NVState::WriteDone{
+                break;
+            }
+            unsafe{
+                chip.service_pending_interrupts();
+                DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
                 chip.atomic(|| {
                     if !chip.has_pending_interrupts()
@@ -623,26 +667,25 @@ for Kernel {
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
         // Convert buffer to graph_info struct
         let (head, body, tail) = unsafe { buffer.align_to::<GraphInfo>()};
-        debug!("print buffer: {:#?}", buffer);
+        // debug!("print read buffer: {:#?}", buffer);
         // Check if there was an initialized struct by checking the u32 indicator
         // If there was, use that struct as the starting place, and put all of the
         // previously finished processes in the "Ended" state
-        if !head.is_empty() {
-            let nv_storage_graph_info = &body[0];
-            if nv_storage_graph_info.init_indicator == 1321579449 {
-                self.graph_info.put(*nv_storage_graph_info);
-                let mut i: usize = 0;
-                let ended_procs: [u8; 10] = nv_storage_graph_info.ended_procs_arr;
-                for p in self.processes.iter() {
-                    if ended_procs[i] == 1 {
-                        p.map(|process| {
-                            process.set_ended_state()
-                        });
-                    }
-                    i += 1;
+        let nv_storage_graph_info = &body[0];
+        if nv_storage_graph_info.init_indicator == 1321579449 {
+            self.graph_info.put(*nv_storage_graph_info);
+            let mut i: usize = 0;
+            let ended_procs: [u8; 10] = nv_storage_graph_info.ended_procs_arr;
+            for p in self.processes.iter() {
+                if ended_procs[i] == 1 {
+                    p.map(|process| {
+                        process.set_ended_state()
+                    });
                 }
+                i += 1;
             }
         }
+
         // If there wasn't any initialized struct, then initialize a clean one and put that
         // in the kernel object
         else {
@@ -657,5 +700,7 @@ for Kernel {
         debug!("size of graph info {}", mem::size_of::<GraphInfo>());
         self.nv_storage_state.set(NVState::ReadDone);
     }
-    fn write_done(&self, buffer: &'static mut [u8], length: usize) {}
+    fn write_done(&self, buffer: &'static mut [u8], length: usize) {
+        self.nv_storage_state.set(NVState::WriteDone);
+    }
 }

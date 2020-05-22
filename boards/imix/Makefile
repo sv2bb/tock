@@ -10,12 +10,22 @@ TOCKLOADER=tockloader
 # Where in the SAM4L flash to load the kernel with `tockloader`
 KERNEL_ADDRESS=0x10000
 
+# Where in the SAM4L flash to load the process graph with `tockloader`
+GRAPH_ADDRESS=0x72000
+
 # Upload programs over uart with tockloader
 ifdef PORT
   TOCKLOADER_GENERAL_FLAGS += --port $(PORT)
 endif
 
 TOCKLOADER_JTAG_FLAGS = --jtag --board imix --arch cortex-m4 --jtag-device ATSAM4LC8C
+
+.PHONY: all
+all: program erase-nv
+
+.PHONY: erase-nv
+erase-nv: erase_flash_segment.bin
+	$(TOCKLOADER) $(TOCKLOADER_GENERAL_FLAGS) flash --address $(GRAPH_ADDRESS) $<
 
 .PHONY: program
 program: target/$(TARGET)/release/$(PLATFORM).bin

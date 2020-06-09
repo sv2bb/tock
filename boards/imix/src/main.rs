@@ -311,6 +311,12 @@ pub unsafe fn reset_handler() {
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES, nv_to_page));
 
+    kernel::debug::assign_gpios(
+        Some(&sam4l::gpio::PC[22]),
+        Some(&sam4l::gpio::PC[10]),
+        None,
+    );
+
     let dynamic_deferred_call_clients =
         static_init!([DynamicDeferredCallClientState; 2], Default::default());
     let dynamic_deferred_caller = static_init!(
@@ -516,7 +522,6 @@ pub unsafe fn reset_handler() {
     // set client calls for nonvolatile storage
     hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, nv_to_page);
     nv_to_page.set_client(board_kernel);
-
     debug!("Initialization complete. Entering main loop");
 
     // Include below to run udp tests

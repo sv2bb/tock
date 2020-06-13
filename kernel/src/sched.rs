@@ -32,7 +32,9 @@ const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 /// Length of Graph_Info (state to save in case of power failure) (# of bytes)
 const GRAPH_INFO_LEN: usize = 64;
 /// Size of Processes Graph (# of edges)
-const PROCESSES_GRAPH_LEN: usize = 3;
+const PROCESSES_GRAPH_LEN: usize = 2;
+/// Process Graph
+const PROCESSES_GRAPH:[[usize; 2]; PROCESSES_GRAPH_LEN] = [[2, 0], [0, 1]];
 
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
@@ -112,7 +114,7 @@ impl Kernel {
             processes: processes,
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
-            processes_graph: [[2, 3], [3, 0], [0, 1]],
+            processes_graph: PROCESSES_GRAPH,
             nv_storage: nv_storage,
             nv_storage_state: Cell::new(NVState::Initialized),
             graph_info: MapCell::new(GraphInfo::new([0; 10], [0; 10])),
@@ -274,7 +276,7 @@ impl Kernel {
         }
     }
 
-    fn get_ready_processes(&self, ready_procs: &mut [u8]) {
+    fn get_ready_processes(&self, ready_procs: &mut [u8], mut independent_process_count: &mut usize) {
         let mut is_dependent: bool;
         let mut middle_of_graph: bool = false;
         // loop through graph edges 
@@ -287,6 +289,7 @@ impl Kernel {
                     if self.processes_graph[x][0] == self.processes_graph[y][1]{
                         if x == y {
                             ready_procs[self.processes_graph[x][0]] = 1;
+                            *independent_process_count += 1;
                         }
                         else if self.processes[self.processes_graph[y][0]].unwrap().get_state() == process::State::Ended {
                         	is_dependent = false;
@@ -332,15 +335,10 @@ impl Kernel {
         self.graph_info.map(|graph_info| {
             ready_procs = graph_info.ready_procs_arr.clone();
         });
-
+        let mut independent_process_count = 0;
         // Graph analysis to  find ready to run processes
-        self.get_ready_processes(&mut ready_procs);
-        // if(ready_procs[0] == 1 && ready_procs[1] == 1 && ready_procs[2] == 0){
-        //     debug_gpio!(1, set);
-        // }
-        // let proc_to_run = ready_procs_iter.nth(0);
-
-        ////debug!("hellllllllo before k loop");
+        self.get_ready_processes(&mut ready_procs, &mut independent_process_count);
+        // debug_gpio!(1, set);
         loop {
             unsafe {
                 let mut ready_procs_iter = self.processes.iter().filter(|&entry| {
@@ -348,14 +346,17 @@ impl Kernel {
                         entry2.get_state() != process::State::Ended && ready_procs[entry2.appid().idx()] == 1
                     })
                 });
+                // if ready_procs[2] == 1{
+                //     debug!("The final proc is ready to run");
+                // }
 
                 let ready_process_count = ready_procs_iter.count();
                 // debug!("count {}", ready_process_count);
-
-                if  ready_process_count == 0{
-                    // debug!("w");
+                // debug!("independent proc count: {}", independent_process_count);
+                if  ready_process_count == independent_process_count{
+                    // debug!("x");
                     if self.get_nv_state() != NVState::WriteDone {
-                        ////debug!("z");
+                        // debug!("y");
                         self.nv_storage_state.set(NVState::WritePending);
                         self.nv_storage_operation(chip, &mut ready_procs);
                     }
@@ -370,7 +371,6 @@ impl Kernel {
                 chip.service_pending_interrupts();
                 DynamicDeferredCall::call_global_instance_while(|| !chip.has_pending_interrupts());
 
-                // debug!("I'm here! {:#?}", proc_to_run.unwrap().unwrap().appid());
                 for p in ready_procs_iter2 {
                     // debug!("z");
                     p.map(|process| {
@@ -406,42 +406,26 @@ impl Kernel {
         if self.get_nv_state() == NVState::ReadPending {
             //debug!("in read");
             unsafe{let buffer = static_init!([u8; GRAPH_INFO_LEN], [0; GRAPH_INFO_LEN]);
-            self.nv_storage.read(buffer, 0x75000, mem::size_of::<GraphInfo>());}
+            self.nv_storage.read(buffer, 0x72000, mem::size_of::<GraphInfo>());}
         }
         if self.get_nv_state() == NVState::WritePending {
             //debug!("in write");
             let mut graph_to_store = self.graph_info.take().unwrap();
 
                 for p in self.processes.iter() {
-                    p.map(|process|
+                    p.map(|process| {
+                        let input_buffer_data = unsafe{*process.input_buffer()};
+                        debug!("IPC Data to be written: {}", input_buffer_data);
+                        unsafe{graph_to_store.inter_process_data[process.appid().idx()] = input_buffer_data};
                         if process.get_state() == process::State::Ended{
                             graph_to_store.ended_procs_arr[process.appid().idx()] = 1;
                             //debug!("closure if");
                         }
-                        else{graph_to_store.ended_procs_arr[process.appid().idx()] = 0;
-                            //debug!("closure else")
+                        graph_to_store.ready_procs_arr[process.appid().idx()] = ready_procs[process.appid().idx()];
+                        // else{graph_to_store.ended_procs_arr[process.appid().idx()] = 0;
+                        //     //debug!("closure else")
+                        // }
                     });
-
-                    let process = p.unwrap();
-                    // unsafe{graph_to_store.inter_process_data[process.appid().idx()] = process.input_buffer()}
-                    // let data_ptr: *mut u8 =
-
-                    // let mut data: [u8; 4] = [0; 4];
-                    // let data_ptr: *mut[u8; 4] = &mut data;
-                    // unsafe{ptr::copy(process.input_buffer(), data_ptr, 4)};
-
-                    let input_buffer_data = unsafe{*process.input_buffer()};
-                    debug!("IPC Data to be written: {}", input_buffer_data);
-                    unsafe{graph_to_store.inter_process_data[process.appid().idx()] = input_buffer_data};
-                    // unsafe{ptr::copy(process.input_buffer(), ptr, 4)};
-
-                    // unsafe{graph_to_store.inter_process_data[i].copy_from_slice(input_buffer_data)};
-                    //
-                    // let input_buffer_data = unsafe{slice::from_raw_parts(process.input_buffer(), 4)};
-                }
-
-                for x in 0..10{
-                    graph_to_store.ready_procs_arr[x] = ready_procs[x];
                 }
 
             // Not completely necessary, about to have a power failure
@@ -457,8 +441,9 @@ impl Kernel {
                 buf_ptr.copy_from_slice(bytes);
 
                 let mut buffer = static_init!([u8; GRAPH_INFO_LEN], init_buffer);
-                //debug!("buffer to be written {:#?}", buffer);
-                self.nv_storage.write(buffer, 0x75000, GRAPH_INFO_LEN);
+                // debug!("buffer to be written first half: {:#?}", &buffer[0 .. 31]);
+                // debug!("buffer to be written second half: {:#?}", &buffer[32 .. 63]);
+                self.nv_storage.write(buffer, 0x72000, GRAPH_INFO_LEN);
             }
 
         }
@@ -769,7 +754,7 @@ for Kernel {
                         process.set_ended_state()
                     });
                 }
-                debug!("IPC Info: {}", nv_storage_graph_info.inter_process_data[i]);
+                debug!("IPC Info: {} @ {}", nv_storage_graph_info.inter_process_data[i], i);
                 let data = nv_storage_graph_info.inter_process_data[i].clone();
 
                 p.map(|process| {

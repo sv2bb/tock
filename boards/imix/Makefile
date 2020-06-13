@@ -11,7 +11,7 @@ TOCKLOADER=tockloader
 KERNEL_ADDRESS=0x10000
 
 # Where in the SAM4L flash to load the process graph with `tockloader`
-GRAPH_ADDRESS=0x75000
+GRAPH_ADDRESS=0x72000
 
 # Upload programs over uart with tockloader
 ifdef PORT

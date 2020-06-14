@@ -96,7 +96,8 @@ pub fn load_processes<C: Chip>(
     let processes_graph = kernel.get_processes_graph();
     //set up each proc's output buffer
     for i in 0..processes_graph.len(){
-        procs[processes_graph[i][0]].unwrap().set_output_buffer_location(procs[processes_graph[i][1]].unwrap().input_buffer());
+        debug!("process output buffer function: {}", i);
+        procs[processes_graph[i][1]].unwrap().set_input_buffer_location(procs[processes_graph[i][0]].unwrap().output_buffer());
     }
 }
 
@@ -148,7 +149,7 @@ pub trait ProcessType {
     fn set_ended_state(&self);
 
     /// Set up output buffer for process
-    fn set_output_buffer_location(&self, buffer_location: *mut usize);
+    fn set_input_buffer_location(&self, buffer_location: *mut usize);
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
@@ -180,14 +181,11 @@ pub trait ProcessType {
     fn kernel_memory_break(&self) -> *const u8;
 
     /// The input buffer for a process.
-    fn input_buffer(&self) -> *mut usize;
+    fn input_buffer(&self) -> *const usize;
 
 
     /// The output_buffer for a process.
-    fn output_buffer(&self) -> *const usize;
-
-    /// Set the input buffer of a process, typically after returning from a power failure
-    fn set_input_buffer(&self, data: &usize);
+    fn output_buffer(&self) -> *mut usize;
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -553,10 +551,10 @@ pub struct Process<'a, C: 'static + Chip> {
     kernel_memory_break: Cell<*const u8>,
 
     /// Pointer to the process's input buffer.
-    input_buffer: Cell<*mut usize>,
+    input_buffer: Cell<*const usize>,
 
     /// Pointer to the process's output buffer.
-    output_buffer: Cell<*const usize>,
+    output_buffer: Cell<*mut usize>,
 
     /// Copy of where the kernel memory break is when the app is first started.
     /// This is handy if the app is restarted so we know where to reset
@@ -805,19 +803,19 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     fn set_ended_state(&self) {
         self.state.set(State::Ended);
-        // debug!("Process {} Ended", self.appid().idx())
+        debug!("Process {} Ended", self.appid().idx())
     }
 
-    fn set_output_buffer_location(&self, buffer_location: *mut usize){
-        self.output_buffer.set(buffer_location);
+    fn set_input_buffer_location(&self, buffer_location: *mut usize){
+        self.input_buffer.set(buffer_location);
     }
 
-    fn set_input_buffer(&self, data: &usize){
-        let input_ptr = self.input_buffer();
-        // unsafe{*input_ptr = data;}
-        unsafe{ptr::copy(data, input_ptr, 4)};
-
-    }
+    // fn set_input_buffer(&self, data: &usize){
+    //     let input_ptr = self.input_buffer();
+    //     // unsafe{*input_ptr = data;}
+    //     unsafe{ptr::copy(data, input_ptr, 4)};
+    //
+    // }
 
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
@@ -854,11 +852,11 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     // fn set_process_input(&self, u8?)
 
-    fn input_buffer(&self) -> *mut usize {
+    fn input_buffer(&self) -> *const usize {
         self.input_buffer.get()
     }
 
-    fn output_buffer(&self) -> *const usize {
+    fn output_buffer(&self) -> *mut usize {
         self.output_buffer.get()
     }
 
@@ -1419,7 +1417,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             let process_struct_offset = mem::size_of::<Process<C>>();
 
             // Make room for input buffer - 4 bytes;
-            let input_buffer_offset = mem::size_of::<[usize; 1]>();
+            let output_buffer_offset = mem::size_of::<[usize; 1]>();
 
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
             // Provide the app with plenty of initial process accessible memory.
@@ -1498,8 +1496,8 @@ impl<C: 'static + Chip> Process<'a, C> {
             let process_struct_memory_location = kernel_memory_break;
 
             // Last thing is actually the input buffer
-            kernel_memory_break = kernel_memory_break.offset(-(input_buffer_offset as isize));
-            let input_buffer_location = kernel_memory_break;
+            kernel_memory_break = kernel_memory_break.offset(-(output_buffer_offset as isize));
+            let output_buffer_location = kernel_memory_break;
 
             // Determine the debug information to the best of our
             // understanding. If the app is doing all of the PIC fixup and
@@ -1517,7 +1515,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = Cell::new(kernel_memory_break);
-            process.input_buffer = Cell::new(input_buffer_location as *mut usize);
+            process.output_buffer = Cell::new(output_buffer_location as *mut usize);
             process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = Cell::new(initial_sbrk_pointer);
             process.original_app_break = initial_sbrk_pointer;

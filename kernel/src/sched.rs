@@ -409,14 +409,14 @@ impl Kernel {
             self.nv_storage.read(buffer, 0x72000, mem::size_of::<GraphInfo>());}
         }
         if self.get_nv_state() == NVState::WritePending {
-            //debug!("in write");
+            debug!("in write");
             let mut graph_to_store = self.graph_info.take().unwrap();
 
                 for p in self.processes.iter() {
                     p.map(|process| {
-                        let input_buffer_data = unsafe{*process.input_buffer()};
-                        debug!("IPC Data to be written: {}", input_buffer_data);
-                        unsafe{graph_to_store.inter_process_data[process.appid().idx()] = input_buffer_data};
+                        let output_buffer_data = unsafe{*process.output_buffer()};
+                        debug!("IPC Data to be written: {}", output_buffer_data);
+                        unsafe{graph_to_store.inter_process_data[process.appid().idx()] = output_buffer_data};
                         if process.get_state() == process::State::Ended{
                             graph_to_store.ended_procs_arr[process.appid().idx()] = 1;
                             //debug!("closure if");
@@ -759,7 +759,7 @@ for Kernel {
 
                 p.map(|process| {
                     // process.set_input_buffer(&data);
-                    unsafe{*process.input_buffer() = data};
+                    unsafe{*process.output_buffer() = data};
                 });
                 // i += 1;
             }

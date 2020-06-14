@@ -754,12 +754,13 @@ for Kernel {
                         process.set_ended_state()
                     });
                 }
-                debug!("IPC Info: {} @ {}", nv_storage_graph_info.inter_process_data[i], i);
+                // debug!("IPC Info: {} @ {}", nv_storage_graph_info.inter_process_data[i], i);
                 let data = nv_storage_graph_info.inter_process_data[i].clone();
 
                 p.map(|process| {
                     // process.set_input_buffer(&data);
                     unsafe{*process.output_buffer() = data};
+                    // debug!("Size of pointer: {}", mem::size_of::<*const u8>());
                 });
                 // i += 1;
             }

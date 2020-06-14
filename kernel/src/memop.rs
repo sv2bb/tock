@@ -109,10 +109,10 @@ crate fn memop(process: &dyn ProcessType, op_type: usize, r1: usize) -> ReturnCo
         }
 
         // Op Type 12: Input buffer begin
-        12 => ReturnCode::SuccessWithValue { value: process.input_buffer() as usize },
+        12 => ReturnCode::SuccessWithValue { value: process.input_buffer().unwrap()[r1] as usize},
 
         // Op Type 13: Output buffer begin
-        13 => ReturnCode::SuccessWithValue { value: process.output_buffer() as usize },
+        13 => ReturnCode::SuccessWithValue { value: process.output_buffer() as usize},
 
         _ => ReturnCode::ENOSUPPORT,
     }

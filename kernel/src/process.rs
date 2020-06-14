@@ -19,6 +19,7 @@ use crate::sched::Kernel;
 use crate::syscall::{self, Syscall, UserspaceKernelBoundary};
 use crate::tbfheader;
 use core::cmp::max;
+use core::borrow::Borrow;
 
 /// Helper function to load processes from flash into an array of active
 /// processes. This is the default template for loading processes, but a board
@@ -62,6 +63,7 @@ pub fn load_processes<C: Chip>(
                 app_memory_size,
                 fault_response,
                 i,
+                // [0; 4],
             );
 
             if config::CONFIG.debug_load_processes {
@@ -97,11 +99,26 @@ pub fn load_processes<C: Chip>(
     //set up each proc's output buffer
     for i in 0..processes_graph.len(){
         debug!("process output buffer function: {}", i);
-        procs[processes_graph[i][1]].unwrap().set_input_buffer_location(procs[processes_graph[i][0]].unwrap().output_buffer());
+        procs[processes_graph[i][1]].unwrap().set_input_buffer_location(processes_graph[i][0], procs[processes_graph[i][0]].unwrap().output_buffer());
     }
+    // debug!("Process 0 input array at 0: {:#?}", procs[0].input_buffer);
 }
 
 
+// #[repr(C, packed)]
+// #[derive(Debug, Copy, Clone)]
+// struct InputBufferStruct{
+//     /// Verifies whether or not the struct has already been initialized and written to flash
+//     app_id: u32,
+//     /// Array of which processes are ready to run
+//     input_pointer: *const usize,
+// }
+//
+// impl GraphInfo {
+//     fn new(ready_procs: [u8; 10], ended_procs: [u8; 10]) -> GraphInfo {
+//         }
+//     }
+// }
 
 /// This trait is implemented by process structs.
 pub trait ProcessType {
@@ -149,7 +166,7 @@ pub trait ProcessType {
     fn set_ended_state(&self);
 
     /// Set up output buffer for process
-    fn set_input_buffer_location(&self, buffer_location: *mut usize);
+    fn set_input_buffer_location(&self, prev_proc: usize, buffer_location: *mut usize);
 
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
@@ -181,11 +198,14 @@ pub trait ProcessType {
     fn kernel_memory_break(&self) -> *const u8;
 
     /// The input buffer for a process.
-    fn input_buffer(&self) -> *const usize;
-
+    // fn input_buffer(&self, index: usize) -> *const usize;
+    fn input_buffer(&self) -> Option<[*const usize; 4]>;
 
     /// The output_buffer for a process.
     fn output_buffer(&self) -> *mut usize;
+
+     // The output_buffer for a process.
+    // fn get_input_array(get_input_array&self) -> [*const usize; 4];
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -551,7 +571,7 @@ pub struct Process<'a, C: 'static + Chip> {
     kernel_memory_break: Cell<*const u8>,
 
     /// Pointer to the process's input buffer.
-    input_buffer: Cell<*const usize>,
+    input_buffer: MapCell<[*const usize; 4]>,
 
     /// Pointer to the process's output buffer.
     output_buffer: Cell<*mut usize>,
@@ -806,8 +826,14 @@ impl<C: Chip> ProcessType for Process<'a, C> {
         debug!("Process {} Ended", self.appid().idx())
     }
 
-    fn set_input_buffer_location(&self, buffer_location: *mut usize){
-        self.input_buffer.set(buffer_location);
+    fn set_input_buffer_location(&self, prev_proc: usize, buffer_location: *mut usize){
+        // let mut input_array = self.input_buffer.take().unwrap();
+        // input_array[prev_proc] = buffer_location;
+        // self.input_buffer.replace(input_array);
+        debug!("Hello from set_input_buffer_location!");
+        self.input_buffer.map(|input_array|{
+            input_array[prev_proc] = buffer_location;
+        });
     }
 
     // fn set_input_buffer(&self, data: &usize){
@@ -852,13 +878,19 @@ impl<C: Chip> ProcessType for Process<'a, C> {
 
     // fn set_process_input(&self, u8?)
 
-    fn input_buffer(&self) -> *const usize {
-        self.input_buffer.get()
+    fn input_buffer(&self) -> Option<[*const usize; 4]> {
+        self.input_buffer.map(|input_array|{
+            *input_array
+        })
     }
 
     fn output_buffer(&self) -> *mut usize {
         self.output_buffer.get()
     }
+    //
+    // fn get_input_array(&self) -> [*const usize; 4] {
+    //     // self.input_buffer.take().unwrap();
+    // }
 
     fn number_writeable_flash_regions(&self) -> usize {
         self.header.number_writeable_flash_regions()
@@ -1338,6 +1370,7 @@ impl<C: 'static + Chip> Process<'a, C> {
         remaining_app_memory_size: usize,
         fault_response: FaultResponse,
         index: usize,
+        // input_array: [*const usize; 4],
     ) -> (Option<&'static dyn ProcessType>, usize, usize) {
         if let Some(tbf_header) = tbfheader::parse_and_validate_tbf_header(app_flash_address) {
             let app_flash_size = tbf_header.get_total_size() as usize;
@@ -1381,7 +1414,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 .mpu()
                 .allocate_region(
                     app_flash_address,
-                    app_flash_size, 
+                    app_flash_size,
                     app_flash_size,
                     mpu::Permissions::ReadWriteExecute,
                     &mut mpu_config,
@@ -1416,7 +1449,10 @@ impl<C: 'static + Chip> Process<'a, C> {
             // Make room to store this process's metadata.
             let process_struct_offset = mem::size_of::<Process<C>>();
 
-            // Make room for input buffer - 4 bytes;
+            // Make room for input buffer array - 16 bytes;
+            let input_buffer_offset = mem::size_of::<[usize; 16]>();
+
+            // Make room for output buffer - 4 bytes;
             let output_buffer_offset = mem::size_of::<[usize; 1]>();
 
             // Initial sizes of the app-owned and kernel-owned parts of process memory.
@@ -1437,7 +1473,7 @@ impl<C: 'static + Chip> Process<'a, C> {
                 remaining_app_memory as *const u8,
                 remaining_app_memory_size,
                 min_total_memory_size,
-                initial_app_memory_size, 
+                initial_app_memory_size,
                 initial_kernel_memory_size,
                 mpu::Permissions::ReadWriteOnly,
                 &mut mpu_config,
@@ -1496,6 +1532,10 @@ impl<C: 'static + Chip> Process<'a, C> {
             let process_struct_memory_location = kernel_memory_break;
 
             // Last thing is actually the input buffer
+            kernel_memory_break = kernel_memory_break.offset(-(input_buffer_offset as isize));
+            let input_buffer_location = kernel_memory_break;
+
+            // Last thing is actually the input buffer
             kernel_memory_break = kernel_memory_break.offset(-(output_buffer_offset as isize));
             let output_buffer_location = kernel_memory_break;
 
@@ -1515,6 +1555,7 @@ impl<C: 'static + Chip> Process<'a, C> {
             process.memory = app_memory;
             process.header = tbf_header;
             process.kernel_memory_break = Cell::new(kernel_memory_break);
+            process.input_buffer = MapCell::new([0 as *const usize; 4]);
             process.output_buffer = Cell::new(output_buffer_location as *mut usize);
             process.original_kernel_memory_break = kernel_memory_break;
             process.app_break = Cell::new(initial_sbrk_pointer);
